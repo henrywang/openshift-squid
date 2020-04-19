@@ -1,0 +1,179 @@
+---
+kind: Template
+apiVersion: v1
+labels:
+  app: openshift-squid
+  template: openshift-squid-template
+metadata:
+  name: openshift-squid
+  annotations:
+    openshift.io/display-name: OpenShift Squid
+    tags: instant-app,openshift-squid
+
+objects:
+- kind: ImageStream
+  apiVersion: v1
+  metadata:
+    labels:
+     app: ${SQUID_APP_NAME}
+    name: ${SQUID_SERVICE_NAME}
+  # Jenkins intermedia build
+- kind: BuildConfig
+  apiVersion: v1
+  metadata:
+    labels:
+     app: ${SQUID_APP_NAME}
+    name: "${SQUID_SERVICE_NAME}"
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: "${SQUID_SERVICE_NAME}:latest"
+    resources: {}
+    source:
+      contextDir: ${CONTEXTDIR}
+      git:
+        uri: ${REPO_URL}
+        ref: ${REPO_REF}
+      type: Git
+    strategy:
+      type: Docker
+      dockerStrategy:
+        noCache: true
+        forcePull: true
+    triggers:
+    - type: ConfigChange
+    successfulBuildsHistoryLimit: 2
+    failedBuildsHistoryLimit: 2
+  # Route
+- kind: Route
+  apiVersion: v1
+  metadata:
+    name: ${SQUID_SERVICE_NAME}
+    annotations:
+      template.openshift.io/expose-uri: http://{.spec.host}{.spec.path}
+  spec:
+    to:
+      kind: Service
+      name: ${SQUID_SERVICE_NAME}
+- kind: PersistentVolumeClaim
+  apiVersion: v1
+  metadata:
+    name: "${SQUID_SERVICE_NAME}"
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: "${VOLUME_CAPACITY}"
+  # Jenkins master deployment
+- kind: DeploymentConfig
+  apiVersion: v1
+  metadata:
+    name: ${SQUID_SERVICE_NAME}
+  spec:
+    replicas: 1
+    selector:
+      name: ${SQUID_SERVICE_NAME}
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          name: ${SQUID_SERVICE_NAME}
+      spec:
+        containers:
+        - name: ${SQUID_SERVICE_NAME}
+          image: ${SQUID_IMAGE_STREAM_TAG}
+          imagePullPolicy: IfNotPresent
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3128
+            initialDelaySeconds: 3
+            timeoutSeconds: 240
+          livenessProbe:
+            failureThreshold: 2
+            httpGet:
+              path: /
+              port: 3128
+            initialDelaySeconds: 420
+            periodSeconds: 360
+            timeoutSeconds: 240
+          resources:
+            limits:
+              memory: "4Gi"
+              cpu: "2000m"
+            requests:
+              memory: "4Gi"
+              cpu: "2000m"
+          securityContext:
+            capabilities: {}
+            privileged: false
+          terminationMessagePath: /dev/termination-log
+          volumeMounts:
+          - mountPath: /var/spool/squid
+            name: ${SQUID_SERVICE_NAME}-data
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        volumes:
+        - name: "${SQUID_SERVICE_NAME}-data"
+          persistentVolumeClaim:
+            claimName: "${SQUID_SERVICE_NAME}"
+    triggers:
+    - type: "ConfigChange" 
+    - type: "ImageChange" 
+      imageChangeParams:
+        automatic: true
+        containerNames:
+          - ${SQUID_SERVICE_NAME}
+        from:
+          kind: "ImageStreamTag"
+          name: ${SQUID_IMAGE_STREAM_TAG}
+- kind: Service
+  apiVersion: v1
+  metadata:
+    name: "${SQUID_SERVICE_NAME}"
+  spec:
+    ports:
+    - name: squid
+      protocol: TCP
+      port: 3128
+      targetPort: 3128
+      nodePort: 0
+    selector:
+      name: "${SQUID_SERVICE_NAME}"
+    type: ClusterIP
+    sessionAffinity: None
+# global parameters
+parameters:
+- description: Git repository with Dockerfile and master entrypoint.
+  displayName: Repository URL
+  name: REPO_URL
+  value: https://gitlab.cee.redhat.com/3rd/3rdci-jenkins.git
+  required: true
+- description: The sub-directory inside the repository.
+  displayName: Context Directory
+  name: CONTEXTDIR
+  value: master
+- description: The git ref or tag to use for customization.
+  displayName: Git Reference
+  name: REPO_REF
+  value: master
+- name: SQUID_APP_NAME
+  displayName: Squid APP Name
+  description: The name of the Squid application.
+  value: openshift-squid
+- name: SQUID_SERVICE_NAME
+  displayName: Squid Service Name
+  description: The name of the OpenShift Service exposed for the Squid container.
+  value: openshift-squid
+- name: SQUID_IMAGE_STREAM_TAG
+  displayName: Jenkins ImageStreamTag
+  description: Name of the ImageStreamTag to be used for the Jenkins image.
+  value: openshift-squid:latest
+- name: VOLUME_CAPACITY
+  displayName: Volume Capacity
+  description: Volume space available for data, e.g. 512Mi, 2Gi.
+  value: 20Gi
+  required: true
