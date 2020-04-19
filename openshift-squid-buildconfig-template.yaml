@@ -17,7 +17,6 @@ objects:
     labels:
      app: ${SQUID_APP_NAME}
     name: ${SQUID_SERVICE_NAME}
-  # Jenkins intermedia build
 - kind: BuildConfig
   apiVersion: v1
   metadata:
@@ -31,7 +30,6 @@ objects:
         name: "${SQUID_SERVICE_NAME}:latest"
     resources: {}
     source:
-      contextDir: ${CONTEXTDIR}
       git:
         uri: ${REPO_URL}
         ref: ${REPO_REF}
