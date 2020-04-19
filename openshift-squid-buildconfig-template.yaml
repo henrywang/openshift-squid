@@ -84,20 +84,6 @@ objects:
         - name: ${SQUID_SERVICE_NAME}
           image: ${SQUID_IMAGE_STREAM_TAG}
           imagePullPolicy: IfNotPresent
-          readinessProbe:
-            httpGet:
-              path: /
-              port: 3128
-            initialDelaySeconds: 3
-            timeoutSeconds: 240
-          livenessProbe:
-            failureThreshold: 2
-            httpGet:
-              path: /
-              port: 3128
-            initialDelaySeconds: 420
-            periodSeconds: 360
-            timeoutSeconds: 240
           resources:
             limits:
               memory: "4Gi"
