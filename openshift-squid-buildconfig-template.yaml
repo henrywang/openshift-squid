@@ -150,7 +150,7 @@ parameters:
 - description: Git repository with Dockerfile and master entrypoint.
   displayName: Repository URL
   name: REPO_URL
-  value: https://gitlab.cee.redhat.com/3rd/3rdci-jenkins.git
+  value: https://github.com/henrywang/openshift-squid.git
   required: true
 - description: The sub-directory inside the repository.
   displayName: Context Directory
